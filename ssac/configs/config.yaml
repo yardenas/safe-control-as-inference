@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - environment: island_navigation
+  - environment: safety_grid
 
 hydra:
   run:
@@ -21,9 +21,9 @@ training:
   safe: True
   cost_limit: 0
   seed: 0
-  time_limit: 1000
-  steps_per_epoch: 1000
-  evaluation_steps: 1000
+  time_limit: 100
+  episodes_per_epoch: 100
+  evaluation_episodes: 100
   epochs: 200
   eval_every: 5
   render_episodes: 1

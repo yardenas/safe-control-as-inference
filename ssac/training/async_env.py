@@ -8,9 +8,10 @@ from enum import Enum
 import cloudpickle
 import numpy as np
 from gymnasium.spaces import Box
+from gymnasium.wrappers.autoreset import AutoResetWrapper
 from gymnasium.wrappers.clip_action import ClipAction
 from gymnasium.wrappers.rescale_action import RescaleAction
-from gymnasium.wrappers.autoreset import AutoResetWrapper
+from gymnasium.wrappers.time_limit import TimeLimit
 
 
 class Protocol(Enum):
@@ -32,11 +33,13 @@ class AsyncEnv:
     def __init__(
         self,
         ctor,
+        time_limit,
         vector_size=1,
     ):
         self.env_fn = cloudpickle.dumps(ctor)
         self.parents = []
         self.processes = []
+        self.time_limit = time_limit
         for _ in range(vector_size):
             parent, process = self._make_worker()
             self.parents.append(parent)
@@ -52,7 +55,7 @@ class AsyncEnv:
         parent, child = mp.Pipe()
         process = mp.Process(
             target=_worker,
-            args=(self.env_fn, child),
+            args=(self.env_fn, child, self.time_limit),
         )
         return parent, process
 
@@ -166,14 +169,15 @@ class AsyncEnv:
         return outs
 
 
-def _worker(ctor, conn):
+def _worker(ctor, conn, time_limit):
     try:
         env = cloudpickle.loads(ctor)()
         if isinstance(env.action_space, Box):
             env = RescaleAction(env, -1.0, 1.0)  # type: ignore
             env.action_space = Box(-1.0, 1.0, env.action_space.shape, np.float32)
             env = ClipAction(env)  # type: ignore
-            env = AutoResetWrapper(env)
+        env = TimeLimit(env, time_limit)
+        env = AutoResetWrapper(env)
         while True:
             try:
                 # Only block for short times to have keyboard exceptions be raised.

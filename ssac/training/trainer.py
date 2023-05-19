@@ -4,7 +4,8 @@ from typing import List, Optional
 import cloudpickle
 from omegaconf import DictConfig
 
-from ssac import acting, async_env, logging, utils
+from ssac.agent import SafeSAC
+from ssac.training import acting, async_env, logging
 from ssac.types import Agent, EnvironmentFactory
 
 
@@ -34,18 +35,20 @@ class Trainer:
         self.state_writer = logging.StateWriter(log_path)
         self.env = async_env.AsyncEnv(
             self.make_env,
-            self.config.training.parallel_envs,
             self.config.training.time_limit,
-            self.config.training.action_repeat,
+            self.config.training.parallel_envs,
         )
-        # Get next batch of tasks.
-        tasks = next(utils.grouper(self.tasks(train=True), self.env.num_envs))
         if self.seeds is not None:
-            self.env.reset(seed=self.seeds, options={"task": tasks})
+            self.env.reset(seed=self.seeds)
         else:
-            self.env.reset(seed=self.config.training.seed, options={"task": tasks})
+            self.env.reset(seed=self.config.training.seed)
         if self.agent is None:
-            self.agent = None
+            self.agent = SafeSAC(
+                self.env.observation_space,
+                self.env.action_space,
+                self.config,
+                self.logger,
+            )
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -60,14 +63,14 @@ class Trainer:
             print(f"Training epoch #{epoch}")
             self._step(
                 train=True,
-                num_steps_per_epoch=self.config.training.steps_per_epoch,
+                num_episodes_per_epoch=self.config.training.episodes_per_epoch,
                 prefix="train",
             )
             if (epoch + 1) % self.config.training.eval_every == 0:
                 print("Evaluating...")
                 self._step(
                     train=False,
-                    num_steps_per_epoch=self.config.training.evaluation_steps,
+                    num_episodes_per_epoch=self.config.training.evaluation_episodes,
                     prefix="evaluate",
                 )
             self.epoch = epoch + 1
@@ -77,20 +80,20 @@ class Trainer:
     def _step(
         self,
         train: bool,
-        num_steps_per_epoch: int,
+        num_episodes_per_epoch: int,
         prefix: str,
     ) -> None:
-        config, agent, env, logger = self.config, self.agent, self.env, self.logger
+        _, agent, env, logger = self.config, self.agent, self.env, self.logger
         assert env is not None and agent is not None and logger is not None
         render_episodes = int(not train) * self.config.training.render_episodes
         summary = acting.interact(
             agent,
             env,
-            num_steps_per_epoch,
+            num_episodes_per_epoch,
             render_episodes,
         )
         if train:
-            self.step += num_steps_per_epoch
+            self.step += num_episodes_per_epoch
         objective, cost_rate, feasibilty = summary.metrics
         logger.log_summary(
             {
@@ -101,12 +104,13 @@ class Trainer:
             self.step,
         )
         if render_episodes > 0:
-            logger.log_video(
-                summary.videos[: config.training.parallel_envs],
-                self.step,
-                "video",
-                30 / config.training.action_repeat,
-            )
+            pass
+            # logger.log_video(
+            #     summary.videos[: config.training.parallel_envs],
+            #     self.step,
+            #     "video",
+            #     30,
+            # )
         logger.log_metrics(self.step)
 
     def get_env_random_state(self):

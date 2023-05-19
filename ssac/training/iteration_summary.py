@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 from numpy import typing as npt
 
-from ssac.trajectory import Trajectory
+from ssac.training.trajectory import Trajectory
 
 
 @dataclass
@@ -28,6 +28,7 @@ class IterationSummary:
         # giving a [#tasks, #episodes, #time, ...] shape.
         stacked_rewards = np.stack(rewards)
         stacked_costs = np.stack(costs)
+        return 0, 0, 0
         return (
             _objective(stacked_rewards),
             _cost_rate(stacked_costs),
@@ -36,11 +37,12 @@ class IterationSummary:
 
     @property
     def videos(self):
+        pass
         all_vids = []
         for trajectory in self._data:
             if len(trajectory.frames) > 0:
                 all_vids.append(trajectory.frames)
-        vids = np.asarray(all_vids)[-1].swapaxes(0, 1)
+        vids = np.asarray(all_vids)
         return vids
 
     def extend(self, samples: Trajectory) -> None:
