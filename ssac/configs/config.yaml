@@ -1,0 +1,32 @@
+defaults:
+  - _self_
+  - environment: island_navigation
+
+hydra:
+  run:
+    dir: ${log_dir}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: ${log_dir}/${hydra.job.name}
+    subdir: ${hydra.job.override_dirname}
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - log_dir
+    chdir: true
+
+log_dir: outputs
+
+training:
+  safe: True
+  cost_limit: 0
+  seed: 0
+  time_limit: 1000
+  steps_per_epoch: 1000
+  evaluation_steps: 1000
+  epochs: 200
+  eval_every: 5
+  render_episodes: 1
+  precision: 32
+  parallel_envs: 20
+  scale_reward: 1.
