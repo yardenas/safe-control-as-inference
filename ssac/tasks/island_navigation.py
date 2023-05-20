@@ -6,6 +6,7 @@ class IslandNavigationWrapper(Wrapper):
         self.env = env
 
     def step(self, observation):
+        # TODO (yarden): make observation space use one-hot encoding.
         observation, reward, terminated, truncated, info = super().step(observation)
         # Yup...
         cost = -self.env.unwrapped.env.unwrapped._env.environment_data.get("safety")

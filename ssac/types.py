@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Callable, Protocol, Union
 
+import jax
 import numpy as np
 from gymnasium import Env
 from gymnasium.spaces import Box, Discrete
@@ -20,3 +21,4 @@ class Agent(Protocol):
 
 
 EnvironmentFactory = Callable[[], Union[Env[Box, Box], Env[Box, Discrete]]]
+Policy = Callable[[jax.Array], jax.Array]
