@@ -28,7 +28,6 @@ class IterationSummary:
         # giving a [#tasks, #episodes, #time, ...] shape.
         stacked_rewards = np.stack(rewards)
         stacked_costs = np.stack(costs)
-        return 0, 0, 0
         return (
             _objective(stacked_rewards),
             _cost_rate(stacked_costs),
@@ -37,11 +36,16 @@ class IterationSummary:
 
     @property
     def videos(self):
-        pass
         all_vids = []
+        max_len = 0
         for trajectory in self._data:
             if len(trajectory.frames) > 0:
+                max_len = max(max_len, len(trajectory.frames))
                 all_vids.append(trajectory.frames)
+        for i, vid in enumerate(all_vids):
+            current_len = len(vid)
+            if current_len < max_len:
+                all_vids[i] = vid + [vid[-1]] * (max_len - current_len)
         vids = np.asarray(all_vids)
         return vids
 
@@ -50,7 +54,7 @@ class IterationSummary:
 
 
 def _objective(rewards: npt.NDArray[Any]) -> float:
-    return float(rewards.sum(2).mean())
+    return float(rewards.mean())
 
 
 def _cost_rate(costs: npt.NDArray[Any]) -> float:
@@ -58,4 +62,4 @@ def _cost_rate(costs: npt.NDArray[Any]) -> float:
 
 
 def _feasibility(costs: npt.NDArray[Any], boundary: float) -> float:
-    return float((costs.sum(2).mean(1) <= boundary).mean())
+    return float((costs.mean() <= boundary).mean())

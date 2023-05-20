@@ -12,6 +12,13 @@ class IslandNavigationWrapper(Wrapper):
         info["cost"] = cost
         return observation, reward, terminated, truncated, info
 
+    def render(self):
+        if self.env.render_mode == "rgb_array":
+            array = self.env.render().transpose(2, 1, 0)
+            return array
+        else:
+            return self.env.render()
+
 
 def make():
     import gym

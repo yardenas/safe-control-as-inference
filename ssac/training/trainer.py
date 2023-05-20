@@ -83,7 +83,7 @@ class Trainer:
         num_episodes_per_epoch: int,
         prefix: str,
     ) -> None:
-        _, agent, env, logger = self.config, self.agent, self.env, self.logger
+        config, agent, env, logger = self.config, self.agent, self.env, self.logger
         assert env is not None and agent is not None and logger is not None
         render_episodes = int(not train) * self.config.training.render_episodes
         summary = acting.interact(
@@ -105,12 +105,12 @@ class Trainer:
         )
         if render_episodes > 0:
             pass
-            # logger.log_video(
-            #     summary.videos[: config.training.parallel_envs],
-            #     self.step,
-            #     "video",
-            #     30,
-            # )
+            logger.log_video(
+                summary.videos[: config.training.parallel_envs],
+                self.step,
+                "video",
+                30,
+            )
         logger.log_metrics(self.step)
 
     def get_env_random_state(self):
