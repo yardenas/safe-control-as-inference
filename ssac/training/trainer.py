@@ -104,8 +104,7 @@ class Trainer:
             self.step,
         )
         if render_episodes > 0:
-            num_log = min(10, config.training.parallel_envs)
-            pass
+            num_log = min(5, config.training.parallel_envs)
             logger.log_video(
                 summary.videos[:num_log],
                 self.step,

@@ -12,11 +12,9 @@ def make(cfg: DictConfig) -> EnvironmentFactory:
 
             make_env = make
         case "pendulum":
-            from functools import partial
+            from ssac.tasks.pendulum import make
 
-            import gymnasium
-
-            return partial(gymnasium.make, "Pendulum-v1", render_mode="rgb_array")
+            make_env = make
         case _:
             raise NotImplementedError
     return make_env

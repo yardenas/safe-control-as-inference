@@ -184,7 +184,9 @@ class ActorCritic:
         self.target_entropy = np.prod(action_space.shape)  # type: ignore
         self.target_safety = config.training.cost_limit
 
-    def update(self, batch: Transition, key: jax.random.KeyArray):
+    def update(
+        self, batch: Transition, key: jax.random.KeyArray
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         actor_key, critics_key = jax.random.split(key)
         lagrangians = jnp.exp(self.log_lagrangians)
         (self.critics, self.critics_learner.state), critic_loss = update_critics(
@@ -216,6 +218,7 @@ class ActorCritic:
             self.log_lagrangians_learner.state,
             self.log_lagrangians_learner,
         )
+        return critic_loss, rest["loss"], lagrangian_loss
 
 
 @eqx.filter_jit

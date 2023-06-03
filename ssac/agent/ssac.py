@@ -41,7 +41,8 @@ class SafeSAC:
     def __call__(self, observation: FloatArray) -> FloatArray:
         if len(self.replay_buffer) > self.config.agent.prefill:
             batch = next(self.replay_buffer.sample(1))
-            self.actor_critic.update(batch, next(self.prng))
+            losses = self.actor_critic.update(batch, next(self.prng))
+            log(losses, self.logger)
         action = policy(self.actor_critic.actor, observation, next(self.prng))
         return np.asarray(action)
 
@@ -56,3 +57,9 @@ class SafeSAC:
     def __setstate__(self, state):
         self.__dict__.update(state)
         self.logger = TrainingLogger(self.config.log_dir)
+
+
+def log(losses, logger):
+    logger["critic_loss"] = losses[0].item()
+    logger["actor_loss"] = losses[1].item()
+    logger["lagrangian_loss"] = losses[2].item()
