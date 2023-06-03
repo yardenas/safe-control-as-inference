@@ -11,6 +11,12 @@ def make(cfg: DictConfig) -> EnvironmentFactory:
             from ssac.tasks.island_navigation import make
 
             make_env = make
+        case "pendulum":
+            from functools import partial
+
+            import gymnasium
+
+            return partial(gymnasium.make, "Pendulum-v1", render_mode="rgb_array")
         case _:
             raise NotImplementedError
     return make_env

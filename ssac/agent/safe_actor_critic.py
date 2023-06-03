@@ -62,13 +62,14 @@ class ContinuousActor(ActorBase):
     ):
         self.net = eqx.nn.MLP(state_dim, action_dim * 2, hidden_size, n_layers, key=key)
 
-    def __call__(self, state: jax.Array) -> trx.Normal:
+    def __call__(self, state: jax.Array) -> trx.MultivariateNormalDiag:
         x = self.net(state)
         mu, stddev = jnp.split(x, 2, axis=-1)
         init_std = inv_softplus(5.0)
         stddev = jnn.softplus(stddev + init_std) + 0.1
         dist = trx.Normal(mu, stddev)
         dist = trx.Transformed(dist, trx.Tanh())
+        dist = trx.Independent(dist, 1)
         return dist
 
 
@@ -128,12 +129,12 @@ def make_actor(
     if isinstance(action_space, Box):
         action_dim = np.prod(action_space.shape)  # type: ignore
         actor = ContinuousActor(
-            state_dim=state_dim, action_dim=action_dim, **config.actor, key=key
+            state_dim=state_dim, action_dim=action_dim, **config.agent.actor, key=key
         )
     elif isinstance(action_space, Discrete):
         action_dim = action_space.n
         actor = DiscreteActor(
-            state_dim=state_dim, action_dim=action_dim, **config.actor, key=key
+            state_dim=state_dim, action_dim=action_dim, **config.agent.actor, key=key
         )
     else:
         raise NotImplementedError
@@ -154,7 +155,7 @@ def make_critics(
     else:
         raise NotImplementedError
     critic_factory = lambda key: Critic(
-        state_dim=state_dim, action_dim=action_dim, **config.actor, key=key
+        state_dim=state_dim, action_dim=action_dim, **config.agent.critic, key=key
     )
     key1, key2 = jax.random.split(key)
     one = critic_factory(key1)
@@ -172,13 +173,13 @@ class ActorCritic:
     ) -> None:
         actor_key, critic_key = jax.random.split(key)
         self.actor = make_actor(observation_space, action_space, config, actor_key)
-        self.actor_learner = Learner(self.actor, config.actor_optimizer)
+        self.actor_learner = Learner(self.actor, config.agent.actor_optimizer)
         self.critics = make_critics(observation_space, action_space, config, critic_key)
-        self.critics_learner = Learner(self.critics, config.critic_optimizer)
+        self.critics_learner = Learner(self.critics, config.agent.critic_optimizer)
         self.discount = config.agent.discount
         self.log_lagrangians = jnp.asarray(config.agent.initial_log_lagrangians)
         self.log_lagrangians_learner = Learner(
-            self.log_lagrangians, config.lagrangians_optimizer
+            self.log_lagrangians, config.agent.lagrangians_optimizer
         )
         self.target_entropy = np.prod(action_space.shape)  # type: ignore
         self.target_safety = config.training.cost_limit
@@ -186,7 +187,7 @@ class ActorCritic:
     def update(self, batch: Transition, key: jax.random.KeyArray):
         actor_key, critics_key = jax.random.split(key)
         lagrangians = jnp.exp(self.log_lagrangians)
-        self.critics, self.critics_learner.state, critic_loss = update_critics(
+        (self.critics, self.critics_learner.state), critic_loss = update_critics(
             batch,
             self.critics,
             self.actor,
@@ -196,24 +197,24 @@ class ActorCritic:
             self.discount,
             critics_key,
         )
-        self.actor, self.actor_learner.state, rest = update_actor(
+        (self.actor, self.actor_learner.state), rest = update_actor(
             batch,
             self.actor,
             self.critics,
             self.actor_learner.state,
             self.actor_learner,
-            self,
             lagrangians,
             actor_key,
         )
         (
-            self.log_lagrangians,
-            self.log_lagrangians_learner.state,
+            (self.log_lagrangians, self.log_lagrangians_learner.state),
             lagrangian_loss,
         ) = update_log_lagrangians(
             self.log_lagrangians,
             -rest["log_pi"],
             jnp.asarray(self.target_entropy),
+            self.log_lagrangians_learner.state,
+            self.log_lagrangians_learner,
         )
 
 
@@ -227,18 +228,17 @@ def update_critics(
     lagrangians: jax.Array,
     discount: float,
     key: jax.random.KeyArray,
-):
+) -> tuple[tuple[CriticPair, OptState], jax.Array]:
     def loss_fn(critics):
-        next_action, log_pi = actor(batch.next_observation).sample_and_log_prob(
-            seed=key
-        )
-        next_qs = critics(batch.next_observation, next_action)
+        sample_log_prob = jax.vmap(lambda o: actor(o).sample_and_log_prob(seed=key))
+        next_action, log_pi = sample_log_prob(batch.next_observation)
+        next_qs = jax.vmap(critics)(batch.next_observation, next_action)
         debiased_q = jnp.minimum(*next_qs)
-        bonus = -lagrangians.dot(log_pi)
+        bonus = -lagrangians * log_pi
         next_soft_q = debiased_q + bonus
         soft_q_target = batch.reward + (1.0 - batch.terminal) * discount * next_soft_q
         soft_q_target = jax.lax.stop_gradient(soft_q_target)
-        q1, q2 = critics(batch.observation, batch.action)
+        q1, q2 = jax.vmap(critics)(batch.observation, batch.action)
         return (l2_loss(q1, soft_q_target) + l2_loss(q2, soft_q_target)).mean()
 
     loss, grads = eqx.filter_value_and_grad(loss_fn)(critics)
@@ -255,12 +255,13 @@ def update_actor(
     learner: Learner,
     lagrangians: jax.Array,
     key: jax.random.KeyArray,
-):
+) -> tuple[tuple[ContinuousActor | DiscreteActor, OptState], dict[str, jax.Array]]:
     def loss_fn(actor):
-        action, log_pi = actor(batch.observation).sample_and_log_prob(seed=key)
-        qs = critics(batch.observation, action)
+        sample_log_prob = jax.vmap(lambda o: actor(o).sample_and_log_prob(seed=key))
+        action, log_pi = sample_log_prob(batch.observation)
+        qs = jax.vmap(critics)(batch.observation, action)
         debiased_q = jnp.minimum(*qs)
-        bonus = -lagrangians.dot(log_pi)
+        bonus = -lagrangians * log_pi
         objective = debiased_q + bonus
         return -objective.mean(), log_pi.mean()
 

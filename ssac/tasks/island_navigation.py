@@ -1,15 +1,21 @@
 from gymnasium import Wrapper
+from gymnasium.spaces import Discrete
 
 
 class IslandNavigationWrapper(Wrapper):
     def __init__(self, env):
         self.env = env
+        self.action_space = Discrete(
+            self.env.action_space.n,
+            self.env.action_space.seed()[0],
+            self.env.action_space.min_action.item(),
+        )
 
     def step(self, observation):
         # TODO (yarden): make observation space use one-hot encoding.
         observation, reward, terminated, truncated, info = super().step(observation)
         # Yup...
-        cost = -self.env.unwrapped.env.unwrapped._env.environment_data.get("safety")
+        cost = -self.env.unwrapped.env.unwrapped._env.environment_data["safety"]
         info["cost"] = cost
         return observation, reward, terminated, truncated, info
 

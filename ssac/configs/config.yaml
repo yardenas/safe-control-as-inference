@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - environment: safety_grid
+  - environment: pendulum
 
 hydra:
   run:
@@ -36,10 +36,11 @@ agent:
     capacity: 1000
   batch_size: 32
   discount: 0.99
-  actor:
-  n_layers: 2
-  hidden_size: 128
   initial_log_lagrangians: [0.]
+  prefill: 250
+  actor:
+    n_layers: 2
+    hidden_size: 128
   critic:
     n_layers: 2
     hidden_size: 128

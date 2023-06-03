@@ -13,7 +13,8 @@ from ssac.utils import PRNGSequence
 
 @eqx.filter_jit
 def policy(actor, observation, key):
-    return eqx.filter_vmap(actor.act)(observation, key)
+    act = lambda o: actor.act(o, key)
+    return eqx.filter_vmap(act)(observation)
 
 
 class SafeSAC:
@@ -38,8 +39,9 @@ class SafeSAC:
         )
 
     def __call__(self, observation: FloatArray) -> FloatArray:
-        batch = next(self.replay_buffer.sample(1))
-        self.actor_critic.update(batch, next(self.prng))
+        if len(self.replay_buffer) > self.config.agent.prefill:
+            batch = next(self.replay_buffer.sample(1))
+            self.actor_critic.update(batch, next(self.prng))
         action = policy(self.actor_critic.actor, observation, next(self.prng))
         return np.asarray(action)
 

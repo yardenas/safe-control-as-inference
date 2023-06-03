@@ -20,7 +20,7 @@ class Learner:
             optax.scale_by_adam(eps=optimizer_config.get("eps", 1e-8)),
             optax.scale(-optimizer_config.get("lr", 1e-3)),
         )
-        self.state = self.optimizer.init(model)
+        self.state = self.optimizer.init(eqx.filter(model, eqx.is_array))
 
     def grad_step(
         self, model: PyTree, grads: PyTree, state: optax.OptState

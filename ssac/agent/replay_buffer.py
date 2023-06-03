@@ -14,10 +14,12 @@ class ReplayBuffer:
         self._batch_size = batch_size
 
     def store(self, transition: Transition):
-        if len(self.buffer) < self.capacity:
-            self.buffer.append(None)
-        self.buffer[self.position] = transition
-        self.position = int((self.position + 1) % self.capacity)
+        assert transition.cost.ndim == 1
+        for i in range(transition.cost.shape[0]):
+            if len(self.buffer) < self.capacity:
+                self.buffer.append(None)
+            self.buffer[self.position] = Transition(*map(lambda x: x[i], transition))
+            self.position = int((self.position + 1) % self.capacity)
 
     def sample(self, num_samples: int) -> Iterator[Transition]:
         for _ in range(num_samples):
