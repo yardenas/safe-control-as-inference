@@ -40,10 +40,10 @@ class SafeSAC:
 
     def __call__(self, observation: FloatArray) -> FloatArray:
         if len(self.replay_buffer) > self.config.agent.prefill:
-            batch = next(self.replay_buffer.sample(1))
-            losses = self.actor_critic.update(batch, next(self.prng))
+            for batch in self.replay_buffer.sample(self.config.training.parallel_envs):
+                losses = self.actor_critic.update(batch, next(self.prng))
+                log(losses, self.logger)
             self.actor_critic.polyak(self.config.agent.polyak_rate)
-            log(losses, self.logger)
         action = policy(self.actor_critic.actor, observation, next(self.prng))
         return np.asarray(action)
 
