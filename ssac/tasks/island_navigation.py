@@ -27,7 +27,7 @@ class IslandNavigationWrapper(Wrapper):
             return self.env.render()
 
 
-def make():
+def make(_):
     import gym
     import safe_grid_gym  # noqa F401
     from gymnasium.wrappers import compatibility

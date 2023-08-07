@@ -5,6 +5,7 @@ import numpy as np
 from gymnasium import Env
 from gymnasium.spaces import Box, Discrete
 from numpy import typing as npt
+from omegaconf import DictConfig
 
 FloatArray = npt.NDArray[Union[np.float32, np.float64]]
 
@@ -20,5 +21,5 @@ class Agent(Protocol):
         ...
 
 
-EnvironmentFactory = Callable[[], Union[Env[Box, Box], Env[Box, Discrete]]]
+EnvironmentFactory = Callable[[DictConfig], Union[Env[Box, Box], Env[Box, Discrete]]]
 Policy = Callable[[jax.Array], jax.Array]
