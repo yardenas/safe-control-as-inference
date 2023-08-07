@@ -171,12 +171,12 @@ class ActorCritic:
         config: DictConfig,
         key: jax.random.KeyArray,
     ) -> None:
-        actor_key, critic_key = jax.random.split(key)
+        actor_key, critic_key, target_key = jax.random.split(key, 3)
         self.actor = make_actor(observation_space, action_space, config, actor_key)
         self.actor_learner = Learner(self.actor, config.agent.actor_optimizer)
         self.critics = make_critics(observation_space, action_space, config, critic_key)
         self.target_critics = make_critics(
-            observation_space, action_space, config, jax.random.split(critic_key)
+            observation_space, action_space, config, target_key
         )
         self.critics_learner = Learner(self.critics, config.agent.critic_optimizer)
         self.discount = config.agent.discount
@@ -225,9 +225,13 @@ class ActorCritic:
         return critic_loss, rest["loss"], lagrangian_loss
 
     def polyak(self, rate: float):
-        self.target_critics = jax.tree_map(
-            lambda a, b: a * rate + b * (1.0 - rate), self.critics, self.target_critics
+        only_arrays = lambda tree: eqx.filter(tree, eqx.is_array)
+        updates = jax.tree_map(
+            lambda a, b: rate * (a - b),
+            only_arrays(self.critics),
+            only_arrays(self.target_critics),
         )
+        self.target_critics = eqx.apply_updates(self.target_critics, updates)
 
 
 @eqx.filter_jit
