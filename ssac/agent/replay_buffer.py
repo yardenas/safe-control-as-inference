@@ -1,3 +1,4 @@
+import random
 from typing import Iterator, Optional
 
 import numpy as np
@@ -7,7 +8,7 @@ from ssac.training.trajectory import Transition
 
 class ReplayBuffer:
     def __init__(self, capacity: int, seed: int, batch_size: int):
-        self._random = np.random.RandomState(seed)
+        self._random = random.Random(seed)
         self.capacity = capacity
         self.buffer: list[Optional[Transition]] = []
         self.position = 0
@@ -23,9 +24,8 @@ class ReplayBuffer:
 
     def sample(self, num_samples: int) -> Iterator[Transition]:
         for _ in range(num_samples):
-            ids = self._random.randint(0, len(self.buffer), self._batch_size)
-            batch = np.asarray(self.buffer)[ids]
-            out = Transition(*map(np.stack, zip(*batch)))
+            batch = self._random.sample(self.buffer, self._batch_size)
+            out = Transition(*map(np.stack, zip(*batch)))  # type: ignore
             yield out
 
     def __len__(self):
