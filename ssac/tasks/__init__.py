@@ -17,4 +17,4 @@ def make(cfg: DictConfig) -> EnvironmentFactory:
             make_env = make
         case _:
             raise NotImplementedError
-    return make_env
+    return lambda: make_env(cfg)
