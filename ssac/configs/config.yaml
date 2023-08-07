@@ -26,15 +26,15 @@ training:
   evaluation_episodes: 100
   epochs: 200
   eval_every: 5
-  render_episodes: 1
+  render_episodes: 0
   precision: 32
   parallel_envs: 20
   scale_reward: 1.
 
 agent:
   replay_buffer:
-    capacity: 1000
-  batch_size: 32
+    capacity: 1e6
+  batch_size: 256
   discount: 0.99
   polyak_rate: 5e-3
   initial_log_lagrangians: [0.]
