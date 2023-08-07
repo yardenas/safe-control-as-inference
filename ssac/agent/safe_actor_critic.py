@@ -175,6 +175,9 @@ class ActorCritic:
         self.actor = make_actor(observation_space, action_space, config, actor_key)
         self.actor_learner = Learner(self.actor, config.agent.actor_optimizer)
         self.critics = make_critics(observation_space, action_space, config, critic_key)
+        self.target_critics = make_critics(
+            observation_space, action_space, config, jax.random.split(critic_key)
+        )
         self.critics_learner = Learner(self.critics, config.agent.critic_optimizer)
         self.discount = config.agent.discount
         self.log_lagrangians = jnp.asarray(config.agent.initial_log_lagrangians)
@@ -192,6 +195,7 @@ class ActorCritic:
         (self.critics, self.critics_learner.state), critic_loss = update_critics(
             batch,
             self.critics,
+            self.target_critics,
             self.actor,
             self.critics_learner.state,
             self.critics_learner,
@@ -220,11 +224,17 @@ class ActorCritic:
         )
         return critic_loss, rest["loss"], lagrangian_loss
 
+    def polyak(self, rate: float):
+        self.target_critics = jax.tree_map(
+            lambda a, b: a * rate + b * (1.0 - rate), self.critics, self.target_critics
+        )
+
 
 @eqx.filter_jit
 def update_critics(
     batch: Transition,
     critics: CriticPair,
+    target_critics: CriticPair,
     actor: ContinuousActor | DiscreteActor,
     learning_state: OptState,
     learner: Learner,
@@ -235,7 +245,7 @@ def update_critics(
     def loss_fn(critics):
         sample_log_prob = jax.vmap(lambda o: actor(o).sample_and_log_prob(seed=key))
         next_action, log_pi = sample_log_prob(batch.next_observation)
-        next_qs = jax.vmap(critics)(batch.next_observation, next_action)
+        next_qs = jax.vmap(target_critics)(batch.next_observation, next_action)
         debiased_q = jnp.minimum(*next_qs)
         bonus = -lagrangians * log_pi
         next_soft_q = debiased_q + bonus

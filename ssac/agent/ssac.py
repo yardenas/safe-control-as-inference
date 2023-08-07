@@ -42,6 +42,7 @@ class SafeSAC:
         if len(self.replay_buffer) > self.config.agent.prefill:
             batch = next(self.replay_buffer.sample(1))
             losses = self.actor_critic.update(batch, next(self.prng))
+            self.actor_critic.polyak(self.config.polyak_rate)
             log(losses, self.logger)
         action = policy(self.actor_critic.actor, observation, next(self.prng))
         return np.asarray(action)
