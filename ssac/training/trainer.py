@@ -111,7 +111,6 @@ class Trainer:
                 "video",
                 30,
             )
-        logger.log_metrics(self.step)
 
     def get_env_random_state(self):
         assert self.env is not None

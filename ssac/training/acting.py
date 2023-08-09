@@ -38,6 +38,7 @@ def interact(
                 episodes += count
                 pbar.update(count)
                 pbar.set_postfix({"reward": r, "cost": c})
+                agent.logger.log_metrics(len(agent.replay_buffer))
             observations = next_obs
     assert not iteration_summray.empty
     return iteration_summray

@@ -1,4 +1,5 @@
 import equinox as eqx
+import jax
 import numpy as np
 from gymnasium.spaces import Box, Discrete
 from omegaconf import DictConfig
@@ -13,8 +14,10 @@ from ssac.utils import PRNGSequence
 
 @eqx.filter_jit
 def policy(actor, observation, key):
-    act = lambda o: actor.act(o, key)
-    return eqx.filter_vmap(act)(observation)
+    act = lambda o, k: actor.act(o, k)
+    return eqx.filter_vmap(act)(
+        observation, jax.random.split(key, observation.shape[0])
+    )
 
 
 class SafeSAC:
@@ -60,7 +63,6 @@ class SafeSAC:
         self.logger = TrainingLogger(self.config.log_dir)
 
 
-def log(losses, logger):
-    logger["critic_loss"] = losses[0].item()
-    logger["actor_loss"] = losses[1].item()
-    logger["lagrangian_loss"] = losses[2].item()
+def log(log_items, logger):
+    for k, v in log_items.items():
+        logger[k] = v.item()

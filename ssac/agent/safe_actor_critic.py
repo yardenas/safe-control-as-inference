@@ -186,9 +186,7 @@ class ActorCritic:
         self.target_entropy = np.prod(action_space.shape)  # type: ignore
         self.target_safety = config.training.cost_limit
 
-    def update(
-        self, batch: Transition, key: jax.random.KeyArray
-    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+    def update(self, batch: Transition, key: jax.random.KeyArray) -> dict[str, float]:
         actor_key, critics_key = jax.random.split(key)
         lagrangians = jnp.exp(self.log_lagrangians)
         (self.critics, self.critics_learner.state), critic_loss = update_critics(
@@ -216,12 +214,18 @@ class ActorCritic:
             lagrangian_loss,
         ) = update_log_lagrangians(
             self.log_lagrangians,
-            -rest["log_pi"],
+            rest["log_pi"],
             jnp.asarray(self.target_entropy),
             self.log_lagrangians_learner.state,
             self.log_lagrangians_learner,
         )
-        return critic_loss, rest["loss"], lagrangian_loss
+        out = dict(
+            critic_loss=critic_loss,
+            lagrangian_loss=lagrangian_loss,
+            actor_loss=rest["loss"],
+            lagrangian=jnp.exp(self.log_lagrangians.sum()),
+        )
+        return out
 
     def polyak(self, rate: float):
         only_arrays = lambda tree: eqx.filter(tree, eqx.is_array)
@@ -250,8 +254,8 @@ def update_critics(
         next_action, log_pi = sample_log_prob(batch.next_observation)
         next_qs = jax.vmap(target_critics)(batch.next_observation, next_action)
         debiased_q = jnp.minimum(*next_qs)
-        bonus = -lagrangians * log_pi
-        next_soft_q = debiased_q + bonus
+        surprise = -lagrangians * log_pi
+        next_soft_q = debiased_q + surprise
         soft_q_target = batch.reward + (1.0 - batch.terminal) * discount * next_soft_q
         soft_q_target = jax.lax.stop_gradient(soft_q_target)
         q1, q2 = jax.vmap(critics)(batch.observation, batch.action)
@@ -277,8 +281,8 @@ def update_actor(
         action, log_pi = sample_log_prob(batch.observation)
         qs = jax.vmap(critics)(batch.observation, action)
         debiased_q = jnp.minimum(*qs)
-        bonus = -lagrangians * log_pi
-        objective = debiased_q + bonus
+        surprise = -lagrangians * log_pi
+        objective = debiased_q + surprise
         return -objective.mean(), log_pi.mean()
 
     (loss, log_pi), grads = eqx.filter_value_and_grad(loss_fn, has_aux=True)(actor)
@@ -289,14 +293,14 @@ def update_actor(
 @eqx.filter_jit
 def update_log_lagrangians(
     log_lagrangians: jax.Array,
-    constraints: jax.Array,
-    targets: jax.Array,
+    log_pi: jax.Array,
+    target: jax.Array,
     learning_state: OptState,
     learner: Learner,
 ):
     def loss_fn(log_lagrangians):
         lagrangians = jnp.exp(log_lagrangians)
-        penalty = lagrangians * (constraints - targets)
+        penalty = -lagrangians * (log_pi - target)
         return penalty.sum()
 
     loss, grads = eqx.filter_value_and_grad(loss_fn)(log_lagrangians)
