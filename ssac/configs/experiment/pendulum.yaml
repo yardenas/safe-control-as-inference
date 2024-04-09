@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - override /environment: pendulum
+
+training:
+  time_limit: 400
+  epochs: 100
+  safe: false

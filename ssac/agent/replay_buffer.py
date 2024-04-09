@@ -3,7 +3,7 @@ from typing import Iterator, Optional
 
 import numpy as np
 
-from ssac.training.trajectory import Transition
+from ssac.rl.trajectory import Transition
 
 
 class ReplayBuffer:

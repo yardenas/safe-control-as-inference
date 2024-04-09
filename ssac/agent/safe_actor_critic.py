@@ -10,8 +10,8 @@ from gymnasium.spaces import Box, Discrete
 from omegaconf import DictConfig
 from optax import OptState, l2_loss
 
-from ssac.training.trajectory import Transition
-from ssac.utils import Learner
+from ssac.rl.learner import Learner
+from ssac.rl.trajectory import Transition
 
 
 def inv_softplus(x):
@@ -28,7 +28,7 @@ class ActorBase(eqx.Module):
         n_layers: int,
         hidden_size: int,
         *,
-        key: jax.random.KeyArray
+        key: jax.Array,
     ):
         self.net = eqx.nn.MLP(state_dim, action_dim, hidden_size, n_layers, key=key)
 
@@ -38,7 +38,7 @@ class ActorBase(eqx.Module):
     def act(
         self,
         state: jax.Array,
-        key: Optional[jax.random.KeyArray] = None,
+        key: Optional[jax.Array] = None,
         deterministic: bool = False,
     ) -> jax.Array:
         if deterministic:
@@ -58,7 +58,7 @@ class ContinuousActor(ActorBase):
         n_layers: int,
         hidden_size: int,
         *,
-        key: jax.random.KeyArray
+        key: jax.Array,
     ):
         self.net = eqx.nn.MLP(state_dim, action_dim * 2, hidden_size, n_layers, key=key)
 
@@ -93,7 +93,7 @@ class Critic(eqx.Module):
         action_dim: int,
         hidden_size: int,
         *,
-        key: jax.random.KeyArray
+        key: jax.Array,
     ):
         self.net = eqx.nn.MLP(
             state_dim + (action_dim if action_dim is not None else 0),
@@ -122,7 +122,7 @@ def make_actor(
     observation_space: Box | Discrete,
     action_space: Box | Discrete,
     config: DictConfig,
-    key: jax.random.KeyArray,
+    key: jax.Array,
 ) -> ContinuousActor | DiscreteActor:
     state_dim = np.prod(observation_space.shape)  # type: ignore
     if isinstance(action_space, Box):
@@ -144,7 +144,7 @@ def make_critics(
     observation_space: Box | Discrete,
     action_space: Box | Discrete,
     config: DictConfig,
-    key: jax.random.KeyArray,
+    key: jax.Array,
 ):
     state_dim = np.prod(observation_space.shape)  # type: ignore
     if isinstance(action_space, Box):
@@ -168,7 +168,7 @@ class ActorCritic:
         observation_space: Box | Discrete,
         action_space: Box | Discrete,
         config: DictConfig,
-        key: jax.random.KeyArray,
+        key: jax.Array,
     ) -> None:
         actor_key, critic_key, target_key = jax.random.split(key, 3)
         self.actor = make_actor(observation_space, action_space, config, actor_key)
@@ -184,9 +184,9 @@ class ActorCritic:
             self.log_lagrangians, config.agent.lagrangians_optimizer
         )
         self.target_entropy = np.prod(action_space.shape)  # type: ignore
-        self.target_safety = config.training.cost_limit
+        self.target_safety = config.training.safety_budget
 
-    def update(self, batch: Transition, key: jax.random.KeyArray) -> dict[str, float]:
+    def update(self, batch: Transition, key: jax.Array) -> dict[str, float]:
         actor_key, critics_key = jax.random.split(key)
         lagrangians = jnp.exp(self.log_lagrangians)
         (self.critics, self.critics_learner.state), critic_loss = update_critics(
@@ -247,8 +247,10 @@ def update_critics(
     learner: Learner,
     lagrangians: jax.Array,
     discount: float,
-    key: jax.random.KeyArray,
+    key: jax.Array,
 ) -> tuple[tuple[CriticPair, OptState], jax.Array]:
+    terminals = jnp.zeros_like(batch.reward)
+
     def loss_fn(critics):
         sample_log_prob = jax.vmap(lambda o: actor(o).sample_and_log_prob(seed=key))
         next_action, log_pi = sample_log_prob(batch.next_observation)
@@ -256,7 +258,7 @@ def update_critics(
         debiased_q = jnp.minimum(*next_qs)
         surprise = -lagrangians * log_pi
         next_soft_q = debiased_q + surprise
-        soft_q_target = batch.reward + (1.0 - batch.terminal) * discount * next_soft_q
+        soft_q_target = batch.reward + (1.0 - terminals) * discount * next_soft_q
         soft_q_target = jax.lax.stop_gradient(soft_q_target)
         q1, q2 = jax.vmap(critics)(batch.observation, batch.action)
         return (l2_loss(q1, soft_q_target) + l2_loss(q2, soft_q_target)).mean()
@@ -274,7 +276,7 @@ def update_actor(
     learning_state: OptState,
     learner: Learner,
     lagrangians: jax.Array,
-    key: jax.random.KeyArray,
+    key: jax.Array,
 ) -> tuple[tuple[ContinuousActor | DiscreteActor, OptState], dict[str, jax.Array]]:
     def loss_fn(actor):
         sample_log_prob = jax.vmap(lambda o: actor(o).sample_and_log_prob(seed=key))

@@ -1,17 +1,22 @@
 import atexit
 import functools
+import logging
 import multiprocessing as mp
 import sys
 import traceback
+from collections.abc import Iterable
 from enum import Enum
 
 import cloudpickle
 import numpy as np
 from gymnasium.spaces import Box
-from gymnasium.wrappers.autoreset import AutoResetWrapper
 from gymnasium.wrappers.clip_action import ClipAction
 from gymnasium.wrappers.rescale_action import RescaleAction
 from gymnasium.wrappers.time_limit import TimeLimit
+
+from ssac.rl import wrappers
+
+log = logging.getLogger("async_env")
 
 
 class Protocol(Enum):
@@ -29,17 +34,19 @@ class Protocol(Enum):
 # https://github.com/openai/gym/blob/9a5db3b77a0c880ffed96ece1ab76eeff92c85e1/gym/vector/async_vector_env.py#L127
 # which loads all the rendering handlers
 # in the main process.)
-class AsyncEnv:
+class EpisodicAsync:
     def __init__(
         self,
         ctor,
-        time_limit,
         vector_size=1,
+        time_limit=1000,
+        action_repeat=1,
     ):
         self.env_fn = cloudpickle.dumps(ctor)
+        self.time_limit = time_limit
+        self.action_repeat = action_repeat
         self.parents = []
         self.processes = []
-        self.time_limit = time_limit
         for _ in range(vector_size):
             parent, process = self._make_worker()
             self.parents.append(parent)
@@ -55,7 +62,7 @@ class AsyncEnv:
         parent, child = mp.Pipe()
         process = mp.Process(
             target=_worker,
-            args=(self.env_fn, child, self.time_limit),
+            args=(self.env_fn, child, self.time_limit, self.action_repeat),
         )
         return parent, process
 
@@ -105,8 +112,7 @@ class AsyncEnv:
         return (
             np.asarray(observations),
             np.asarray(rewards),
-            np.asarray(truncated, dtype=bool),
-            np.asarray(terminals, dtype=bool),
+            np.asarray(truncated, dtype=bool) | np.asarray(terminals, dtype=bool),
             infos,
         )
 
@@ -146,38 +152,43 @@ class AsyncEnv:
         options=None,
     ):
         if seed is None:
-            per_episode_seed = [None] * self.num_envs
+            per_task_seed = [None] * self.num_envs
         elif isinstance(seed, int):
-            per_episode_seed = [seed + i for i in range(self.num_envs)]  # type: ignore
+            per_task_seed = [seed + i for i in range(self.num_envs)]  # type: ignore
         else:
-            per_episode_seed = seed
-        assert (
-            isinstance(per_episode_seed, list)
-            and len(per_episode_seed) == self.num_envs
-        )
-        for (
-            parent,
-            s,
-        ) in zip(self.parents, per_episode_seed):
+            per_task_seed = seed
+        assert isinstance(per_task_seed, list) and len(per_task_seed) == self.num_envs
+        if options is not None and "task" in options:
+            assert isinstance(options["task"], Iterable)
+            tasks = options.pop("task")
+            assert len(tasks) == self.num_envs
+        else:
+            tasks = [None] * self.num_envs
+        for parent, s, task in zip(self.parents, per_task_seed, tasks):
+            if task is not None:
+                assert options is not None
+                task_options = options.copy()
+                task_options["task"] = task
+            else:
+                task_options = options
             payload = (
                 "reset",
                 (),
-                {"seed": s, "options": options},
+                {"seed": s, "options": task_options},
             )
             parent.send((Protocol.CALL, payload))
         outs = np.asarray([x[0] for x in self.call_wait()])
         return outs
 
 
-def _worker(ctor, conn, time_limit):
+def _worker(ctor, conn, time_limit, action_repeat):
     try:
-        env = cloudpickle.loads(ctor)()
+        env = TimeLimit(cloudpickle.loads(ctor)(), time_limit)
         if isinstance(env.action_space, Box):
             env = RescaleAction(env, -1.0, 1.0)  # type: ignore
             env.action_space = Box(-1.0, 1.0, env.action_space.shape, np.float32)
             env = ClipAction(env)  # type: ignore
-        env = TimeLimit(env, time_limit)
-        env = AutoResetWrapper(env)
+        env = wrappers.ActionRepeat(env, action_repeat)  # type: ignore
         while True:
             try:
                 # Only block for short times to have keyboard exceptions be raised.
@@ -205,7 +216,7 @@ def _worker(ctor, conn, time_limit):
             raise KeyError(f"Received message of unknown type {message}")
     except Exception:
         stacktrace = "".join(traceback.format_exception(*sys.exc_info()))
-        print(f"Error in environment process: {stacktrace}")
+        log.error(f"Error in environment process: {stacktrace}")
         conn.send((Protocol.EXCEPTION, stacktrace))
     finally:
         conn.close()

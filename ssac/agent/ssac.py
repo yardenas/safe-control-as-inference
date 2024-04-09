@@ -6,10 +6,11 @@ from omegaconf import DictConfig
 
 from ssac.agent import safe_actor_critic as sac
 from ssac.agent.replay_buffer import ReplayBuffer
-from ssac.training.logging import TrainingLogger
-from ssac.training.trajectory import Transition
-from ssac.types import FloatArray
-from ssac.utils import PRNGSequence
+from ssac.rl.epoch_summary import EpochSummary
+from ssac.rl.metrics import MetricsMonitor
+from ssac.rl.trajectory import Transition
+from ssac.rl.types import FloatArray, Report
+from ssac.rl.utils import PRNGSequence
 
 
 @eqx.filter_jit
@@ -26,11 +27,9 @@ class SafeSAC:
         observation_space: Box | Discrete,
         action_space: Box | Discrete,
         config: DictConfig,
-        logger: TrainingLogger,
     ):
         self.prng = PRNGSequence(config.training.seed)
         self.config = config
-        self.logger = logger
         self.action_space = action_space
         self.replay_buffer = ReplayBuffer(
             config.agent.replay_buffer.capacity,
@@ -40,12 +39,13 @@ class SafeSAC:
         self.actor_critic = sac.ActorCritic(
             observation_space, action_space, config, next(self.prng)
         )
+        self.metrics_monitor = MetricsMonitor()
 
-    def __call__(self, observation: FloatArray) -> FloatArray:
+    def __call__(self, observation: FloatArray, train: bool = True) -> FloatArray:
         if len(self.replay_buffer) > self.config.agent.prefill:
             for batch in self.replay_buffer.sample(self.config.training.parallel_envs):
                 losses = self.actor_critic.update(batch, next(self.prng))
-                log(losses, self.logger)
+                log(losses, self.metrics_monitor)
             self.actor_critic.polyak(self.config.agent.polyak_rate)
         action = policy(self.actor_critic.actor, observation, next(self.prng))
         return np.asarray(action)
@@ -53,16 +53,14 @@ class SafeSAC:
     def observe(self, transition: Transition) -> None:
         self.replay_buffer.store(transition)
 
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        del state["logger"]
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self.logger = TrainingLogger(self.config.log_dir)
+    def report(self, summary: EpochSummary, epoch: int, step: int) -> Report:
+        metrics = {
+            k: float(v.result.mean) for k, v in self.metrics_monitor.metrics.items()
+        }
+        self.metrics_monitor.reset()
+        return Report(metrics=metrics)
 
 
-def log(log_items, logger):
+def log(log_items, monitor):
     for k, v in log_items.items():
-        logger[k] = v.item()
+        monitor[k] = v.item()

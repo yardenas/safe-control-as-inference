@@ -1,6 +1,6 @@
 from omegaconf import DictConfig
 
-from ssac.types import EnvironmentFactory
+from ssac.rl.types import EnvironmentFactory
 
 
 def make(cfg: DictConfig) -> EnvironmentFactory:
