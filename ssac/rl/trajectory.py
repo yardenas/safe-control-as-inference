@@ -5,7 +5,7 @@ import numpy as np
 from numpy import typing as npt
 
 
-class Transition(NamedTuple):
+class Transition(NamedTuple): 
     observation: npt.NDArray[Any]
     next_observation: npt.NDArray[Any]
     action: npt.NDArray[Any]

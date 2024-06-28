@@ -128,7 +128,7 @@ class EpisodicAsync:
     def call_wait(self, **kwargs):
         return self._receive()
 
-    def render(self):
+    def render(self): #check for why arrays of None values are being added??
         name = "render"
         args = ()
         kwargs = dict()

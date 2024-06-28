@@ -46,7 +46,7 @@ class SafeSAC:
             for batch in self.replay_buffer.sample(self.config.training.parallel_envs):
                 losses = self.actor_critic.update(batch, next(self.prng))
                 log(losses, self.metrics_monitor)
-            self.actor_critic.polyak(self.config.agent.polyak_rate)
+            self.actor_critic.polyak(self.config.agent.polyak_rate, self.config.agent.safety_polyak_rate)
         action = policy(self.actor_critic.actor, observation, next(self.prng))
         return np.asarray(action)
 

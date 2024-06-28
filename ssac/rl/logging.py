@@ -165,7 +165,7 @@ class StateWriter:
         self.state_filename = state_filename
         if not os.path.exists(log_dir):
             os.makedirs(log_dir, exist_ok=True)
-        self.queue: Queue[bytes] = Queue(maxsize=5)
+        self.queue: Queue[bytes] = Queue(maxsize=5) #why 5? What precisely are we writing with this class? a trainer instance at a certain point in training?
         self._thread = Thread(name="state_writer", target=self._worker)
         self._thread.start()
 

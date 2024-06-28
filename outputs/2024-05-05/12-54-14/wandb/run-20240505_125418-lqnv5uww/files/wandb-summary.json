@@ -1,0 +1,1 @@
+{"critic_loss": 0.5638252771332873, "lagrangian_loss": 1.8590821097662844e-05, "actor_loss": 32.13823306560541, "lagrangian": 0.01609575474197048, "train/objective": -151.65249242621314, "train/cost_rate": 0.0, "train/feasibility": 1.0, "train/fps": 64.73694101272119, "_timestamp": 1714909046.7024868, "_runtime": 2588.6042716503143, "_step": 160000, "_wandb": {"runtime": 2713}}

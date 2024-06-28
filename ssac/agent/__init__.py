@@ -1,3 +1,5 @@
 from ssac.agent.ssac import SafeSAC
+from ssac.agent.sac import SAC
 
-__all__ = ["SafeSAC"]
+#P: added SAC
+__all__ = ["SafeSAC", "SAC"]

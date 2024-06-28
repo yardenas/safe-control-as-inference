@@ -1,0 +1,60 @@
+{
+    "os": "Linux-3.10.0-1160.114.2.el7.x86_64-x86_64-with-glibc2.17",
+    "python": "3.10.4",
+    "heartbeatAt": "2024-05-05T10:54:18.920074",
+    "startedAt": "2024-05-05T10:54:18.080540",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/cluster/home/plahmann/safe-control-as-inference/experiment.py",
+    "codePathLocal": null,
+    "codePath": "experiment.py",
+    "git": {
+        "remote": "git@github.com:yardenas/safe-control-as-inference.git",
+        "commit": "24d8a07436c7b3bb620ee45933942b9b8a86c866"
+    },
+    "email": null,
+    "root": "/cluster/home/plahmann/safe-control-as-inference",
+    "host": "eu-login-33",
+    "username": "plahmann",
+    "executable": "/cluster/home/plahmann/safe-control-as-inference/venv/bin/python",
+    "cpu_count": 4,
+    "cpu_count_logical": 4,
+    "cpu_freq": {
+        "current": 3481.93775,
+        "min": 800.0,
+        "max": 3800.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 3637.213,
+            "min": 800.0,
+            "max": 3800.0
+        },
+        {
+            "current": 3662.878,
+            "min": 800.0,
+            "max": 3800.0
+        },
+        {
+            "current": 3656.506,
+            "min": 800.0,
+            "max": 3800.0
+        },
+        {
+            "current": 3501.452,
+            "min": 800.0,
+            "max": 3800.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 9.990234375,
+            "used": 3.4190597534179688
+        }
+    },
+    "memory": {
+        "total": 31.348785400390625
+    }
+}

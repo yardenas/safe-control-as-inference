@@ -10,7 +10,7 @@ from ssac.rl.types import Agent
 def _summarize_episodes(
     trajectory: TrajectoryData,
 ) -> tuple[float, float]:
-    reward = float(trajectory.reward.sum(1).mean())
+    reward = float(trajectory.reward.sum(1).mean()) #why sum(1)? ; It's just for rendering?
     cost = float(trajectory.cost.sum(1).mean())
     return reward, cost
 
@@ -36,7 +36,7 @@ def interact(
             if render:
                 trajectory.frames.append(environment.render())
             actions = agent(observations, train)
-            next_observations, rewards, done, infos = environment.step(actions)
+            next_observations, rewards, done, infos = environment.step(actions) #modify here to include costs?
             costs = np.array([info.get("cost", 0) for info in infos])
             transition = Transition(
                 observations, next_observations, actions, rewards, costs
@@ -80,5 +80,5 @@ def epoch(
         step,
         render_episodes,
     )
-    summary.extend(samples)
+    summary.extend(samples) 
     return summary, step

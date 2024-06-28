@@ -1,0 +1,2 @@
+{"step": 500, "train/objective": -628.1098555281766, "train/cost_rate": 0.0, "train/feasibility": 1.0, "train/fps": 35.906315791906735}
+{"step": 1000, "critic_loss": 4.421636117648595, "lagrangian_loss": 1.4537316523191302, "actor_loss": 4.982559917257593, "lagrangian": 0.9322019962349325, "train/objective": -648.6068209766597, "train/cost_rate": 0.0, "train/feasibility": 1.0, "train/fps": 0.9775889798867209}

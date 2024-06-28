@@ -39,11 +39,13 @@ class EpochSummary:
         all_vids = []
         for trajectory_batch in self._data:
             for trajectory in trajectory_batch:
+                #don't append numpy arrays which only contain None elements:
+                #ADD: and any(frame_elem is not None for frame in trajectory.frames for frame_elem in frame): 
                 if len(trajectory.frames) > 0:
                     all_vids.append(trajectory.frames)
         if len(all_vids) == 0:
             return None
-        vids = np.asarray(all_vids)[-1].transpose(1, 0, -1, 2, 3)
+        vids = np.asarray(all_vids)[-1].transpose(1, 0, -1, 2, 3) #problem: correct shape, but array only contains None values
         return vids
 
     def extend(self, samples: List[Trajectory]) -> None:

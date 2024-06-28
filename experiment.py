@@ -6,6 +6,10 @@ from omegaconf import OmegaConf
 
 from ssac.rl.trainer import get_state_path, load_state, should_resume, start_fresh
 
+#P: teomporary ---disable rendering---
+import os
+os.environ['MUJOCO_GL'] = 'osmesa'
+#-------------------------------------
 _LOG = logging.getLogger(__name__)
 
 

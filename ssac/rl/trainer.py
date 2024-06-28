@@ -8,6 +8,7 @@ from omegaconf import DictConfig
 
 from ssac import tasks
 from ssac.agent.ssac import SafeSAC
+from ssac.agent.sac import SAC
 from ssac.rl import acting, episodic_async_env
 from ssac.rl.epoch_summary import EpochSummary
 from ssac.rl.logging import StateWriter, TrainingLogger
@@ -55,7 +56,7 @@ class Trainer:
         self.epoch = start_epoch
         self.step = step
         self.seeds = seeds
-        self.logger: TrainingLogger | None = None
+        self.logger: TrainingLogger | None = None #is this only for clarity about what these variables will be used for later?
         self.state_writer: StateWriter | None = None
         self.env: episodic_async_env.EpisodicAsync | None = None
         self.agent = agent
@@ -73,11 +74,22 @@ class Trainer:
         if self.seeds is None:
             self.seeds = PRNGSequence(self.config.training.seed)
         if self.agent is None:
-            self.agent = SafeSAC(
-                self.env.observation_space,
-                self.env.action_space,
-                self.config,
-            )
+            #according to config, choose algorithm
+            match self.config.agent.name:
+                case "ssac":
+                    self.agent = SafeSAC(
+                                self.env.observation_space,
+                                self.env.action_space,
+                                self.config,
+                            )
+                case "sac":
+                    self.agent = SAC(
+                                self.env.observation_space,
+                                self.env.action_space,
+                                self.config,
+                            )
+                case _:
+                    raise NotImplementedError
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

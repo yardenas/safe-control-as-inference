@@ -13,6 +13,7 @@ from ssac.rl.trajectory import TrajectoryData
 
 FloatArray = npt.NDArray[Union[np.float32, np.float64]]
 
+#returns environment with [observations, actions] that are either discrete or continuous(Box)
 EnvironmentFactory = Callable[[], Union[Env[Box, Box], Env[Box, Discrete]]]
 
 Policy = Union[Callable[[jax.Array, jax.Array | None], jax.Array], jax.Array]

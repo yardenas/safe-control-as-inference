@@ -9,3 +9,5 @@ if "LOG" not in os.environ:
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     warnings.filterwarnings("ignore", category=FutureWarning)
     warnings.filterwarnings("ignore", category=UserWarning)
+#THIS CODE SETS UP THE LOGGING FOR THE PYTHON RUN 
+#(MAYBE MORE LOGGING SETTINGS ARE SET IN OTHER PARTS OF THE CODE)

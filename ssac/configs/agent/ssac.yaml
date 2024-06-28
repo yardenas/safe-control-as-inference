@@ -1,10 +1,16 @@
+name: ssac
 replay_buffer:
   capacity: 1e6
 batch_size: 256
 discount: 0.99
+safety_discount: 0.99
+safety_polyak_rate: 5e-3
 polyak_rate: 5e-3
 initial_log_lagrangians: [0.]
 prefill: 500
+classifier:
+  n_layers: 2 #2
+  hidden_size: 64 #128
 actor:
   n_layers: 2
   hidden_size: 128
@@ -15,7 +21,15 @@ actor_optimizer:
   lr: 3e-4
   eps: 1e-5
   clip: 0.5
+classifier_optimizer:
+  lr: 3e-4
+  eps: 1e-5
+  clip: 0.5
 critic_optimizer:
+  lr: 3e-4
+  eps: 1e-5
+  clip: 0.5
+safety_critic_optimizer:
   lr: 3e-4
   eps: 1e-5
   clip: 0.5
